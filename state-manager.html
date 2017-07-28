@@ -1,0 +1,595 @@
+<!--
+Copyright 2017 Next Century Corporation
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../build-and-run-query/build-and-run-query.html">
+<link rel="import" href="../elastic-create/elastic-create.html">
+<link rel="import" href="../iron-flex-layout/iron-flex-layout-classes.html">
+<link rel="import" href="../lodash-import/lodash.html">
+<link rel="import" href="../moment-element/moment-with-locales-import.html">
+<link rel="import" href="../paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../styled-dialog/styled-dialog.html">
+<link rel="import" href="../terms-display/terms-display.html">
+<link rel="import" href="uuid.html">
+
+<!--
+A Polymer Element that manages search and filter states saved in an elasticsearch index.
+
+### Example
+```js
+var buildPopupDataFunction = function(collection) {
+  return collection;
+};
+
+var buildStateDataFunction = function(collection) {
+  return {
+    property1: collection.property1 || [],
+    property2: collection.property2 || [],
+    property3: collection.property3 || [],
+    property4: collection.property4 || [],
+    property5: collection.property5 || []
+  };
+};
+
+var collection = {
+  property1: [],
+  property2: ['item1'],
+  property3: ['item2', 'item3'],
+  property4: ['item4']
+};
+
+var processRequest = true;
+```
+
+```html
+<state-manager
+  build-popup-data-function="[[buildPopupDataFunction]]"
+  build-state-data-function="[[buildStateDataFunction]]"
+  client="[[elasticsearchClient]]"
+  state-index="states"
+  state-type="state"
+  collection="{{collection}}"
+  has-history="{{hasHistory}}"
+  process-request="{{processRequest}}"
+  state-history="{{stateHistory}}"
+  state-id="{{stateId}}">
+</state-manager>
+```
+
+@demo demo/index.html
+-->
+
+<dom-module id="state-manager">
+  <template>
+    <style include="iron-flex"></style>
+    <style>
+      :host {
+        display: block;
+      }
+
+      .nowrap {
+        flex-wrap: nowrap;
+      }
+    </style>
+
+    <build-and-run-query
+      raw
+      fields='"id"'
+      values="[[stateId]]"
+      client="[[client]]"
+      index-name="[[stateIndex]]"
+      index-types="[]"
+      aggregations="[]"
+      filters="[]"
+      results="{{_stateIdResults}}">
+    </build-and-run-query>
+
+    <elastic-create
+      client="[[client]]"
+      index="[[stateIndex]]"
+      elastic-type="[[stateType]]"
+      body="[[_creationBody]]"
+      results="{{_creationResults}}">
+    </elastic-create>
+
+    <build-and-run-query
+      raw
+      fields='"state"'
+      values="[[_stringifiedState]]"
+      client="[[client]]"
+      index-name="[[stateIndex]]"
+      index-types="[]"
+      aggregations="[]"
+      filters="[]"
+      results="{{_stringifiedStateResults}}">
+    </build-and-run-query>
+
+    <styled-dialog id="stateHistoryDialog" header="View [[headerType]] State History">
+      <template is="dom-repeat" items="[[stateHistory]]">
+        <div class="layout horizontal">
+          <div class="styled-dialog-text styled-dialog-tall styled-dialog-right-space nowrap">[[item.time]]</div>
+          <terms-display class="flex-1" collection="[[item.collectionToShow]]" icon="[[icon]]"></terms-display>
+          <paper-icon-button class="self-end" icon="[[icon]]" title="Set [[headerType]] State" on-tap="_setState"></paper-icon-button>
+        </div>
+        <div class="styled-dialog-divider"></div>
+      </template>
+    </styled-dialog>
+  </template>
+
+  <script>
+  (function() {
+    'use strict';
+
+    /* globals _, moment, uuid */
+    Polymer({
+      is: 'state-manager',
+
+      properties: {
+        /**
+         * The function to build the terms-display data in the popup using a collection object.
+         *
+         * @type {Object}
+         */
+        buildPopupDataFunction: {
+          type: Object
+        },
+
+        /**
+         * The function to build the state data using a collection object.
+         *
+         * @type {Object}
+         */
+        buildStateDataFunction: {
+          type: Object
+        },
+
+        /**
+         * The elasticsearch client.
+         *
+         * @type {Object}
+         */
+        client: {
+          type: Object
+        },
+
+        /**
+         * The collection of filter or search objects.
+         *
+         * @type {Object}
+         */
+        collection: {
+          notify: true,
+          type: Object
+        },
+
+        /**
+         * The default state to ignore.
+         *
+         * @type {Object}
+         * @default {}
+         */
+        defaultState: {
+          computed: '_buildDefaultState(buildStateDataFunction)',
+          type: Object
+        },
+
+        /**
+         * The format to use for the dates stored in stateHistory.
+         *
+         * @type {String}
+         * @default 'hh:mm:ss A'
+         */
+        format: {
+          type: String,
+          value: 'hh:mm:ss A'
+        },
+
+        /**
+         * The object with properties for lists of strings to filter.
+         *
+         * @type {Object}
+         */
+        hasHistory: {
+          notify: true,
+          type: Boolean
+        },
+
+        /**
+         * The type string to show in the header.
+         *
+         * @type {String}
+         * @default 'Search'
+         */
+        headerType: {
+          type: String,
+          value: 'Search'
+        },
+
+        /**
+         * The icon to show next to the states.
+         *
+         * @type {String}
+         * @default 'search'
+         */
+        icon: {
+          type: String,
+          value: 'search'
+        },
+
+        /**
+         * Whether or not all properties have been loaded/are ready for elastic-client-search.
+         *
+         * @type {Boolean}
+         */
+        processRequest: {
+          notify: true,
+          type: Boolean
+        },
+
+        /**
+         * Tracking the state history.
+         *
+         * @type {Array}
+         * @default []
+         */
+        stateHistory: {
+          type: Array,
+          value: function() {
+            return [];
+          }
+        },
+
+        /**
+         * The ID for the state.
+         *
+         * @type {String}
+         */
+        stateId: {
+          notify: true,
+          type: String
+        },
+
+        /**
+         * The name of the state elasticsearch index.
+         *
+         * @type {String}
+         */
+        stateIndex: {
+          type: String
+        },
+
+        /**
+         * The name of the state elasticsearch type.
+         *
+         * @type {String}
+         */
+        stateType: {
+          type: String
+        },
+
+        /**
+         * The request body for creation of new states.
+         *
+         * @type {Object}
+         * @private
+         */
+        _creationBody: {
+          type: Object
+        },
+
+        /**
+         * The results from the requests for creation of new states.
+         *
+         * @type {Object}
+         * @private
+         */
+        _creationResults: {
+          type: Object
+        },
+
+        /**
+         * The results from the state ID query.
+         *
+         * @type {Object}
+         * @private
+         */
+        _stateIdResults: {
+          type: Object,
+          observer: '_handleStateIdResults'
+        },
+
+        /**
+         * The stringified state for the stringified state query.
+         *
+         * @type {String}
+         * @private
+         */
+        _stringifiedState: {
+          type: String
+        },
+
+        /**
+         * The results from the stringified string query.
+         *
+         * @type {Object}
+         * @private
+         */
+        _stringifiedStateResults: {
+          type: Object,
+          observer: '_updateOrCreateId'
+        },
+
+        /**
+         * Whether the state ID query was run to validate the uniqueness of the ID (rather than getting the state for that ID).
+         *
+         * @type {Boolean}
+         * @default false
+         * @private
+         */
+        _validateId: {
+          type: Boolean,
+          value: false
+        }
+      },
+
+      observers: [
+        '_handleCollectionChange(collection.*, processRequest)',
+        '_checkHistory(stateHistory.*)'
+      ],
+
+      /**
+       * Opens the state history dialog.
+       */
+      openStateHistory: function() {
+        this.$$('#stateHistoryDialog').open();
+      },
+
+      /**
+       * Adds a new state history object to the start of the stateHistory.
+       *
+       * @param {Function} buildPopupDataFunction
+       * @param {Object} collection
+       * @param {String} stateId
+       * @private
+       */
+      _addToHistory: function(buildPopupDataFunction, collection, stateId) {
+        this.unshift('stateHistory', {
+          collection: this._createCollectionCopy(collection),
+          collectionToShow: buildPopupDataFunction(collection),
+          id: stateId,
+          time: moment(new Date()).format(this.format)
+        });
+      },
+
+      /**
+       * Creates and returns the default state.
+       *
+       * @param {Function} buildStateDataFunction
+       * @return {Object}
+       * @private
+       */
+      _buildDefaultState: function(buildStateDataFunction) {
+        return buildStateDataFunction ? buildStateDataFunction({}) : {};
+      },
+
+      /**
+       * Sets the value of hasHastory based on the stateHistory.
+       *
+       * @private
+       */
+      _checkHistory: function() {
+        this.hasHistory = this.stateHistory && this.stateHistory.length > 0;
+      },
+
+      /**
+       * Returns a copy of the given collection object.
+       *
+       * @param {Object} collection
+       * @return {Object}
+       * @private
+       */
+      _createCollectionCopy: function(collection) {
+        return JSON.parse(JSON.stringify(collection));
+      },
+
+      /**
+       * Creates and returns the stringified state for the given collection object.
+       *
+       * @param {Function} buildStateDataFunction
+       * @param {Object} collection
+       * @return {String}
+       * @private
+       */
+      _createStringifiedState: function(buildStateDataFunction, collection) {
+        return JSON.stringify(buildStateDataFunction(collection));
+      },
+
+      /**
+       * Creates and returns a new unique ID.
+       */
+      _generateId: function() {
+        return uuid.v4();
+      },
+
+      /**
+       * Returns the page link using the given window.location object with the given state ID.
+       *
+       * @param {Object} location
+       * @param {String} stateId
+       * @return {String}
+       * @private
+       */
+      _generateLinkWithStateParameter: function(location, stateId) {
+        var parameters = this._getUrlParameters(location.search);
+        if(stateId) {
+          parameters.state = stateId;
+        } else {
+          delete parameters.state;
+        }
+        var parameterStrings = _.keys(parameters).map(function(key) {
+          return key + '=' + parameters[key];
+        });
+        return location.protocol + '//' + location.host + location.pathname + (parameterStrings.length ? '?' + parameterStrings.join('&') : '');
+      },
+
+      /**
+       * Returns the URL parameters from the given string.
+       *
+       * @param {String} parameterInput
+       * @return {Array}
+       * @private
+       */
+      _getUrlParameters: function(parameterInput) {
+        var parameters = {};
+        if(parameterInput && parameterInput !== '?') {
+          (parameterInput.indexOf('?') === 0 ? parameterInput.slice(1) : parameterInput).split('&').forEach(function(parameter) {
+            var parameterSplit = parameter.split('=');
+            parameters[parameterSplit[0]] = (parameterSplit.length > 1 ? parameterSplit[1] : true);
+          });
+        }
+        return parameters;
+      },
+
+      /**
+       * Handles a change in `collection`.
+       * If `processRequest` is false, `buildStateDataFunction` is undefined, or `collection` is equal to the `defaultState`, reset the state ID in the URL.
+       * Otherwise generate a new state ID, update the URL, add the state ID and `collection` to the start of `stateHistory`.
+       *
+       * @private
+       */
+      _handleCollectionChange: function() {
+        if(!this.processRequest || !this.buildStateDataFunction || _.isEqual(this.collection, this.defaultState)) {
+          var params = this._getUrlParameters(window.location.search);
+          if(params.state) {
+            var link = this._generateLinkWithStateParameter(window.location);
+            history.pushState({
+              state: '',
+              stateHistory: this.stateHistory
+            }, '', link);
+          }
+
+          return;
+        }
+
+        this._stringifiedState = this._createStringifiedState(this.buildStateDataFunction, this.collection);
+      },
+
+      /**
+       * Handles the results from the state ID query.  Either creates a new state ID or updates the `collection` with the results.
+       *
+       * @private
+       */
+      _handleStateIdResults: function() {
+        if(this._stateIdResults) {
+          if(this._stateIdResults.hits.hits.length) {
+            // If the query was triggered to validate a new ID and that ID is already in use, generate a new ID to trigger another query.
+            if(this._validateId) {
+              this.stateId = this._generateId();
+            } else {
+              this._updateCollection(this.buildStateDataFunction, this._stateIdResults.hits.hits[0]._source.state);
+            }
+          } else if(this._validateId) {
+            this._validateId = false;
+            this._creationBody = {
+              id: this.stateId,
+              state: this._createStringifiedState(this.buildStateDataFunction, this.collection)
+            };
+            this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.stateHistory, this.stateId);
+          }
+        }
+      },
+
+      /**
+       * Sets the `collection` to the state from the `stateHistory` using the data from the given event.
+       * Removes all states prior to the selected state and closes the state history dialog.
+       *
+       * @param {Object} event
+       * @private
+       */
+      _setState: function(event) {
+        this.splice('stateHistory', event.model.index, 1);
+        this._addToHistory(this.buildPopupDataFunction, event.model.item.collection, event.model.item.id);
+        this.set('collection', this._createCollectionCopy(event.model.item.collection));
+        var link = this._generateLinkWithStateParameter(window.location, event.model.item.id);
+        history.pushState({
+          state: event.model.item.id,
+          stateHistory: this.stateHistory
+        }, '', link);
+        this.$$('#stateHistoryDialog').close();
+      },
+
+      /**
+       * Sets the `collection` to a new object using the given stringified state.
+       *
+       * @param {Function} buildStateDataFunction
+       * @param {String} stringifiedState
+       * @private
+       */
+      _updateCollection: function(buildStateDataFunction, stringifiedState) {
+        var state = JSON.parse(stringifiedState);
+        this.set('processRequest', false);
+        this.set('collection', buildStateDataFunction(state));
+        this.set('processRequest', true);
+      },
+
+      /**
+       * Updates the state ID using the results from the state ID query or creates a new ID if needed.
+       *
+       * @private
+       */
+      _updateOrCreateId: function() {
+        if(this._stringifiedStateResults) {
+          if(this._stringifiedStateResults.hits.hits.length) {
+            // Do not set this.stateId here because that will trigger another query.
+            var stateId = this._stringifiedStateResults.hits.hits[0]._source.id;
+            this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.stateHistory, stateId);
+          } else {
+            this._validateId = true;
+            this.stateId = this._generateId();
+          }
+        }
+      },
+
+      /**
+       * Updates the browser URL with the state ID and adds the given collection to the given state history.
+       *
+       * @param {Function} buildPopupDataFunction
+       * @param {Object} collection
+       * @param {Array} stateHistory
+       * @param {String} stateId
+       * @private
+       */
+      _updateUrlAndAddToHistory: function(buildPopupDataFunction, collection, stateHistory, stateId) {
+        var params = this._getUrlParameters(window.location.search);
+        if(params.state && params.state === stateId) {
+          return;
+        }
+
+        // make sure this stateHistory item is the latest entry in stateHistory
+        if(!stateHistory.length || (stateHistory.length && JSON.stringify(collection) !== JSON.stringify(stateHistory[0].collection))) {
+          this._addToHistory(buildPopupDataFunction, collection, stateId);
+        }
+        var link = this._generateLinkWithStateParameter(window.location, stateId);
+        // update URL with stateId
+        history.pushState({
+          state: stateId,
+          stateHistory: stateHistory
+        }, '', link);
+      }
+    });
+  })();
+  </script>
+</dom-module>
