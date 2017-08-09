@@ -103,15 +103,15 @@ limitations under the License.
         element = fixture('state-manager-fixture');
         element.buildPopupDataFunction = BUILD_ENTITY_POPUP_DATA;
         element.buildStateDataFunction = BUILD_ENTITY_STATE_DATA;
+        element.functionConfig = {};
         flush(done);
       });
 
-      test('default properties are set correctly', function() {
+      test('properties are set as expected', function() {
         expect(element.buildPopupDataFunction).to.equal(BUILD_ENTITY_POPUP_DATA);
         expect(element.buildStateDataFunction).to.equal(BUILD_ENTITY_STATE_DATA);
         expect(element.client).to.not.exist;
         expect(element.collection).to.not.exist;
-        expect(element.defaultState).to.deep.equal(DEFAULT_OBJECT_ENTITY_STATE);
         expect(element.format).to.equal('hh:mm:ss A');
         expect(element.functionConfig).to.deep.equal({});
         expect(element.hasHistory).to.be.false;
@@ -124,6 +124,7 @@ limitations under the License.
         expect(element.stateType).to.not.exist;
         expect(element._creationBody).to.not.exist;
         expect(element._creationResults).to.not.exist;
+        expect(element._defaultState).to.deep.equal(DEFAULT_OBJECT_ENTITY_STATE);
         expect(element._stateIdResults).to.not.exist;
         expect(element._stringifiedState).to.not.exist;
         expect(element._stringifiedStateResults).to.not.exist;
@@ -641,6 +642,52 @@ limitations under the License.
         expect(window.location.search).to.equal('?state=id2');
         expect(element.stateHistory).to.be.an('Array');
         expect(element.stateHistory.length).to.equal(0);
+      });
+    });
+
+    suite('<state-manager> tests with no function or config', function() {
+      var element;
+
+      var DEFAULT_OBJECT_ENTITY_STATE = {
+        type1: [],
+        type2: []
+      };
+
+      var BUILD_ENTITY_STATE_DATA = function(collection) {
+        return {
+          type1: collection.type1 || [],
+          type2: collection.type2 || []
+        };
+      };
+
+      setup(function(done) {
+        element = fixture('state-manager-fixture');
+        flush(done);
+      });
+
+      test('properties are set as expected', function() {
+        expect(element.buildPopupDataFunction).to.not.exist;
+        expect(element.buildStateDataFunction).to.not.exist;
+        expect(element.functionConfig).to.not.exist;
+        expect(element._defaultState).to.not.exist;
+      });
+
+      test('setting buildStateDataFunction does not set _defaultState because functionConfig is undefined ', function() {
+        element.buildStateDataFunction = BUILD_ENTITY_STATE_DATA;
+        expect(element.functionConfig).to.not.exist;
+        expect(element._defaultState).to.not.exist;
+      });
+
+      test('setting functionConfig does not set _defaultState because buildStateDataFunction is undefined ', function() {
+        element.functionConfig = {};
+        expect(element.buildStateDataFunction).to.not.exist;
+        expect(element._defaultState).to.not.exist;
+      });
+
+      test('setting both buildStateDataFunction and functionConfig does set _defaultState', function() {
+        element.buildStateDataFunction = BUILD_ENTITY_STATE_DATA;
+        element.functionConfig = {};
+        expect(element._defaultState).to.deep.equal(DEFAULT_OBJECT_ENTITY_STATE);
       });
     });
   </script>

@@ -91,7 +91,7 @@ var processRequest = true;
       values="[[stateId]]"
       client="[[client]]"
       index-name="[[stateIndex]]"
-      index-types="[]"
+      index-types="[[stateType]]"
       aggregations="[]"
       filters="[]"
       results="{{_stateIdResults}}">
@@ -111,7 +111,7 @@ var processRequest = true;
       values="[[_stringifiedState]]"
       client="[[client]]"
       index-name="[[stateIndex]]"
-      index-types="[]"
+      index-types="[[stateType]]"
       aggregations="[]"
       filters="[]"
       results="{{_stringifiedStateResults}}">
@@ -121,7 +121,7 @@ var processRequest = true;
       <template is="dom-repeat" items="[[stateHistory]]">
         <div class="layout horizontal">
           <div class="styled-dialog-text styled-dialog-tall styled-dialog-right-space nowrap">[[item.time]]</div>
-          <terms-display class="flex-1" collection="[[item.collectionToShow]]" icon="[[icon]]"></terms-display>
+          <terms-display class="flex-1" collection="[[item.collectionToShow]]"></terms-display>
           <paper-icon-button class="self-end" icon="[[icon]]" title="Set [[headerType]] State" on-tap="_setState"></paper-icon-button>
         </div>
         <div class="styled-dialog-divider"></div>
@@ -184,19 +184,6 @@ var processRequest = true;
         },
 
         /**
-         * (Computed)
-         *
-         * The default state to ignore.
-         *
-         * @type {Object}
-         * @default {}
-         */
-        defaultState: {
-          computed: '_buildDefaultState(buildStateDataFunction, functionConfig)',
-          type: Object
-        },
-
-        /**
          * (Optional)
          *
          * The format to use for the dates stored in stateHistory.
@@ -210,18 +197,14 @@ var processRequest = true;
         },
 
         /**
-         * (Optional)
+         * (Required)
          *
          * The config object for the build functions.
          *
          * @type {Object}
-         * @default {}
          */
         functionConfig: {
-          type: Object,
-          value: function() {
-            return {};
-          }
+          type: Object
         },
 
         /**
@@ -340,6 +323,18 @@ var processRequest = true;
          * @private
          */
         _creationResults: {
+          type: Object
+        },
+
+        /**
+         * The default state to ignore.
+         *
+         * @type {Object}
+         * @default {}
+         * @private
+         */
+        _defaultState: {
+          computed: '_buildDefaultState(buildStateDataFunction, functionConfig)',
           type: Object
         },
 
@@ -511,13 +506,13 @@ var processRequest = true;
 
       /**
        * Handles a change in `collection`.
-       * If `processRequest` is false, `buildStateDataFunction` is undefined, or `collection` is equal to the `defaultState`, reset the state ID in the URL.
+       * If `processRequest` is false, `_defaultState` is undefined, or `collection` is equal to the `_defaultState`, reset the state ID in the URL.
        * Otherwise generate a new state ID, update the URL, add the state ID and `collection` to the start of `stateHistory`.
        *
        * @private
        */
       _handleCollectionChange: function() {
-        if(!this.processRequest || !this.buildStateDataFunction || _.isEqual(this.collection, this.defaultState)) {
+        if(!this.processRequest || !this._defaultState || _.isEqual(this.collection, this._defaultState)) {
           var params = this._getUrlParameters(window.location.search);
           if(params.state) {
             var link = this._generateLinkWithStateParameter(window.location);
