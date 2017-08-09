@@ -139,6 +139,8 @@ var processRequest = true;
 
       properties: {
         /**
+         * (Required)
+         *
          * The function to build the terms-display data in the popup using a collection object.
          *
          * @type {Object}
@@ -148,6 +150,8 @@ var processRequest = true;
         },
 
         /**
+         * (Required)
+         *
          * The function to build the state data using a collection object.
          *
          * @type {Object}
@@ -157,6 +161,8 @@ var processRequest = true;
         },
 
         /**
+         * (Required)
+         *
          * The elasticsearch client.
          *
          * @type {Object}
@@ -166,6 +172,8 @@ var processRequest = true;
         },
 
         /**
+         * (Required)
+         *
          * The collection of filter or search objects.
          *
          * @type {Object}
@@ -176,17 +184,21 @@ var processRequest = true;
         },
 
         /**
+         * (Computed)
+         *
          * The default state to ignore.
          *
          * @type {Object}
          * @default {}
          */
         defaultState: {
-          computed: '_buildDefaultState(buildStateDataFunction)',
+          computed: '_buildDefaultState(buildStateDataFunction, functionConfig)',
           type: Object
         },
 
         /**
+         * (Optional)
+         *
          * The format to use for the dates stored in stateHistory.
          *
          * @type {String}
@@ -198,6 +210,23 @@ var processRequest = true;
         },
 
         /**
+         * (Optional)
+         *
+         * The config object for the build functions.
+         *
+         * @type {Object}
+         * @default {}
+         */
+        functionConfig: {
+          type: Object,
+          value: function() {
+            return {};
+          }
+        },
+
+        /**
+         * (Output)
+         *
          * The object with properties for lists of strings to filter.
          *
          * @type {Object}
@@ -208,6 +237,8 @@ var processRequest = true;
         },
 
         /**
+         * (Optional)
+         *
          * The type string to show in the header.
          *
          * @type {String}
@@ -219,6 +250,8 @@ var processRequest = true;
         },
 
         /**
+         * (Optional)
+         *
          * The icon to show next to the states.
          *
          * @type {String}
@@ -230,6 +263,8 @@ var processRequest = true;
         },
 
         /**
+         * (Optional|Output)
+         *
          * Whether or not all properties have been loaded/are ready for elastic-client-search.
          *
          * @type {Boolean}
@@ -240,6 +275,8 @@ var processRequest = true;
         },
 
         /**
+         * (Output)
+         *
          * Tracking the state history.
          *
          * @type {Array}
@@ -253,6 +290,8 @@ var processRequest = true;
         },
 
         /**
+         * (Optional|Output)
+         *
          * The ID for the state.
          *
          * @type {String}
@@ -263,6 +302,8 @@ var processRequest = true;
         },
 
         /**
+         * (Required)
+         *
          * The name of the state elasticsearch index.
          *
          * @type {String}
@@ -272,6 +313,8 @@ var processRequest = true;
         },
 
         /**
+         * (Required)
+         *
          * The name of the state elasticsearch type.
          *
          * @type {String}
@@ -362,13 +405,14 @@ var processRequest = true;
        *
        * @param {Function} buildPopupDataFunction
        * @param {Object} collection
+       * @param {Object} functionConfig
        * @param {String} stateId
        * @private
        */
-      _addToHistory: function(buildPopupDataFunction, collection, stateId) {
+      _addToHistory: function(buildPopupDataFunction, collection, functionConfig, stateId) {
         this.unshift('stateHistory', {
           collection: this._createCollectionCopy(collection),
-          collectionToShow: buildPopupDataFunction(collection),
+          collectionToShow: buildPopupDataFunction(collection, functionConfig),
           id: stateId,
           time: moment(new Date()).format(this.format)
         });
@@ -378,11 +422,12 @@ var processRequest = true;
        * Creates and returns the default state.
        *
        * @param {Function} buildStateDataFunction
+       * @param {Object} functionConfig
        * @return {Object}
        * @private
        */
-      _buildDefaultState: function(buildStateDataFunction) {
-        return buildStateDataFunction ? buildStateDataFunction({}) : {};
+      _buildDefaultState: function(buildStateDataFunction, functionConfig) {
+        return buildStateDataFunction ? buildStateDataFunction({}, functionConfig) : {};
       },
 
       /**
@@ -410,11 +455,12 @@ var processRequest = true;
        *
        * @param {Function} buildStateDataFunction
        * @param {Object} collection
+       * @param {Object} functionConfig
        * @return {String}
        * @private
        */
-      _createStringifiedState: function(buildStateDataFunction, collection) {
-        return JSON.stringify(buildStateDataFunction(collection));
+      _createStringifiedState: function(buildStateDataFunction, collection, functionConfig) {
+        return JSON.stringify(buildStateDataFunction(collection, functionConfig));
       },
 
       /**
@@ -484,7 +530,7 @@ var processRequest = true;
           return;
         }
 
-        this._stringifiedState = this._createStringifiedState(this.buildStateDataFunction, this.collection);
+        this._stringifiedState = this._createStringifiedState(this.buildStateDataFunction, this.collection, this.functionConfig);
       },
 
       /**
@@ -499,15 +545,15 @@ var processRequest = true;
             if(this._validateId) {
               this.stateId = this._generateId();
             } else {
-              this._updateCollection(this.buildStateDataFunction, this._stateIdResults.hits.hits[0]._source.state);
+              this._updateCollection(this.buildStateDataFunction, this._stateIdResults.hits.hits[0]._source.state, this.functionConfig);
             }
           } else if(this._validateId) {
             this._validateId = false;
             this._creationBody = {
               id: this.stateId,
-              state: this._createStringifiedState(this.buildStateDataFunction, this.collection)
+              state: this._createStringifiedState(this.buildStateDataFunction, this.collection, this.functionConfig)
             };
-            this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.stateHistory, this.stateId);
+            this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.functionConfig, this.stateHistory, this.stateId);
           }
         }
       },
@@ -521,7 +567,7 @@ var processRequest = true;
        */
       _setState: function(event) {
         this.splice('stateHistory', event.model.index, 1);
-        this._addToHistory(this.buildPopupDataFunction, event.model.item.collection, event.model.item.id);
+        this._addToHistory(this.buildPopupDataFunction, event.model.item.collection, this.functionConfig, event.model.item.id);
         this.set('collection', this._createCollectionCopy(event.model.item.collection));
         var link = this._generateLinkWithStateParameter(window.location, event.model.item.id);
         history.pushState({
@@ -536,12 +582,13 @@ var processRequest = true;
        *
        * @param {Function} buildStateDataFunction
        * @param {String} stringifiedState
+       * @param {Object} functionConfig
        * @private
        */
-      _updateCollection: function(buildStateDataFunction, stringifiedState) {
+      _updateCollection: function(buildStateDataFunction, stringifiedState, functionConfig) {
         var state = JSON.parse(stringifiedState);
         this.set('processRequest', false);
-        this.set('collection', buildStateDataFunction(state));
+        this.set('collection', buildStateDataFunction(state, functionConfig));
         this.set('processRequest', true);
       },
 
@@ -555,7 +602,7 @@ var processRequest = true;
           if(this._stringifiedStateResults.hits.hits.length) {
             // Do not set this.stateId here because that will trigger another query.
             var stateId = this._stringifiedStateResults.hits.hits[0]._source.id;
-            this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.stateHistory, stateId);
+            this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.functionConfig, this.stateHistory, stateId);
           } else {
             this._validateId = true;
             this.stateId = this._generateId();
@@ -568,11 +615,12 @@ var processRequest = true;
        *
        * @param {Function} buildPopupDataFunction
        * @param {Object} collection
+       * @param {Object} functionConfig
        * @param {Array} stateHistory
        * @param {String} stateId
        * @private
        */
-      _updateUrlAndAddToHistory: function(buildPopupDataFunction, collection, stateHistory, stateId) {
+      _updateUrlAndAddToHistory: function(buildPopupDataFunction, collection, functionConfig, stateHistory, stateId) {
         var params = this._getUrlParameters(window.location.search);
         if(params.state && params.state === stateId) {
           return;
@@ -580,7 +628,7 @@ var processRequest = true;
 
         // make sure this stateHistory item is the latest entry in stateHistory
         if(!stateHistory.length || (stateHistory.length && JSON.stringify(collection) !== JSON.stringify(stateHistory[0].collection))) {
-          this._addToHistory(buildPopupDataFunction, collection, stateId);
+          this._addToHistory(buildPopupDataFunction, collection, functionConfig, stateId);
         }
         var link = this._generateLinkWithStateParameter(window.location, stateId);
         // update URL with stateId

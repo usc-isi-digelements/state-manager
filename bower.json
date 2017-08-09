@@ -1,7 +1,7 @@
 {
   "name": "state-manager",
   "description": "A Polymer Element that manages search and filter states saved in an elasticsearch index.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "authors": [
     "Next Century Corporation"
   ],
