@@ -134,10 +134,10 @@ var processRequest = true;
 
     <styled-dialog id="stateHistoryDialog" header="View [[headerType]] State History">
       <template is="dom-repeat" items="[[stateHistory]]">
-        <div class="layout horizontal center">
-          <div class="styled-dialog-text time">[[item.time]]</div>
-          <terms-display class="flex-1" collection="[[item.collectionToShow]]" term-label="[[termLabel]]"></terms-display>
-          <paper-icon-button class="self-end" icon="[[icon]]" title="Set [[headerType]] State" on-tap="_setState"></paper-icon-button>
+        <div class="layout horizontal">
+          <div class="styled-dialog-name time">[[item.time]]</div>
+          <terms-display class="flex-1 styled-dialog-right-space" collection="[[item.collectionToShow]]" term-label="[[termLabel]]"></terms-display>
+          <paper-icon-button icon="[[icon]]" title="Set [[headerType]] State" on-tap="_setState"></paper-icon-button>
         </div>
         <div class="styled-dialog-divider"></div>
       </template>
