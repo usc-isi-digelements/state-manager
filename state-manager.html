@@ -20,8 +20,10 @@ limitations under the License.
 <link rel="import" href="../iron-flex-layout/iron-flex-layout-classes.html">
 <link rel="import" href="../lodash-import/lodash.html">
 <link rel="import" href="../moment-element/moment-with-locales-import.html">
+<link rel="import" href="../neon-animation/web-animations.html">
 <link rel="import" href="../paper-icon-button/paper-icon-button.html">
 <link rel="import" href="../styled-dialog/styled-dialog.html">
+<link rel="import" href="../styled-dialog/styled-dialog-styles.html">
 <link rel="import" href="../terms-display/terms-display.html">
 <link rel="import" href="uuid.html">
 
@@ -74,14 +76,27 @@ var processRequest = true;
 
 <dom-module id="state-manager">
   <template>
-    <style include="iron-flex"></style>
+    <style include="iron-flex iron-flex-alignment"></style>
+    <style include="styled-dialog-styles"></style>
     <style>
       :host {
         display: block;
       }
 
-      .nowrap {
-        flex-wrap: nowrap;
+      .time {
+        line-height: 30px;
+        min-height: 30px;
+        min-width: 120px;
+      }
+
+      paper-icon-button {
+          height: 30px;
+          width: 30px;
+          padding: 0;
+      }
+
+      styled-dialog {
+        --styled-dialog-min-width: 0;
       }
     </style>
 
@@ -119,9 +134,9 @@ var processRequest = true;
 
     <styled-dialog id="stateHistoryDialog" header="View [[headerType]] State History">
       <template is="dom-repeat" items="[[stateHistory]]">
-        <div class="layout horizontal">
-          <div class="styled-dialog-text styled-dialog-tall styled-dialog-right-space nowrap">[[item.time]]</div>
-          <terms-display class="flex-1" collection="[[item.collectionToShow]]"></terms-display>
+        <div class="layout horizontal center">
+          <div class="styled-dialog-text time">[[item.time]]</div>
+          <terms-display class="flex-1" collection="[[item.collectionToShow]]" term-label="[[termLabel]]"></terms-display>
           <paper-icon-button class="self-end" icon="[[icon]]" title="Set [[headerType]] State" on-tap="_setState"></paper-icon-button>
         </div>
         <div class="styled-dialog-divider"></div>
@@ -133,15 +148,16 @@ var processRequest = true;
   (function() {
     'use strict';
 
-    /* globals _, moment, uuid */
     Polymer({
       is: 'state-manager',
 
+      /* globals _, moment, uuid */
       properties: {
         /**
          * (Required)
          *
          * The function to build the terms-display data in the popup using a collection object.
+         * Must return an object containing fields mapped to arrays of string values.
          *
          * @type {Object}
          */
@@ -230,6 +246,19 @@ var processRequest = true;
         headerType: {
           type: String,
           value: 'Search'
+        },
+
+        /**
+         * (Optional)
+         *
+         * The type string to show in the terms display.
+         *
+         * @type {String}
+         * @default 'Terms'
+         */
+        termLabel: {
+          type: String,
+          value: 'Terms'
         },
 
         /**
@@ -422,7 +451,7 @@ var processRequest = true;
        * @private
        */
       _buildDefaultState: function(buildStateDataFunction, functionConfig) {
-        return buildStateDataFunction ? buildStateDataFunction({}, functionConfig) : {};
+        return (buildStateDataFunction && functionConfig) ? buildStateDataFunction({}, functionConfig) : undefined;
       },
 
       /**
@@ -512,7 +541,7 @@ var processRequest = true;
        * @private
        */
       _handleCollectionChange: function() {
-        if(!this.processRequest || !this._defaultState || _.isEqual(this.collection, this._defaultState)) {
+        if(!this.collection || !this.processRequest || !this._defaultState || _.isEqual(this.collection, this._defaultState)) {
           var params = this._getUrlParameters(window.location.search);
           if(params.state) {
             var link = this._generateLinkWithStateParameter(window.location);
@@ -562,7 +591,9 @@ var processRequest = true;
        */
       _setState: function(event) {
         this.splice('stateHistory', event.model.index, 1);
+        console.log('spliced history ' + JSON.stringify(this.stateHistory));
         this._addToHistory(this.buildPopupDataFunction, event.model.item.collection, this.functionConfig, event.model.item.id);
+        console.log('new history ' + JSON.stringify(this.stateHistory));
         this.set('collection', this._createCollectionCopy(event.model.item.collection));
         var link = this._generateLinkWithStateParameter(window.location, event.model.item.id);
         history.pushState({

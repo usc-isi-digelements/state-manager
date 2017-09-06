@@ -18,13 +18,103 @@ limitations under the License.
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
-  <script src="../../webcomponentsjs/webcomponents-lite.min.js"></script>
+  <script src="../../webcomponentsjs/webcomponents-loader.js"></script>
   <link rel="import" href="../state-manager.html">
 </head>
 
 <body unresolved>
-  <template is="dom-bind" id="demo">
-    <p>TODO</p>
-  </template>
+  <dom-bind id="demo">
+    <script>
+    (function(document) {
+      var demo = document.querySelector('dom-bind');
+
+      demo.stringify = function(object) {
+        return JSON.stringify(object);
+      };
+
+      demo.stringifyFunction = function(func) {
+        return '' + func;
+      };
+      
+      demo.buildPopupDataFunction = function(collection) {
+        return {
+          property1: collection.property1 ? collection.property1.split(',') : [],
+          property2: collection.property2 ? collection.property2.split(',') : [],
+          property3: collection.property3 ? collection.property3.split(',') : [],
+          property4: collection.property4 ? collection.property4.split(',') : []
+        };
+      };
+
+      demo.buildStateDataFunction = function(collection) {
+        return {
+          property1: collection.property1 || '',
+          property2: collection.property2 || '',
+          property3: collection.property3 || '',
+          property4: collection.property4 || ''
+        };
+      };
+
+      demo.stateHistory = [{
+        collection: {},
+        collectionToShow: {},
+        id: '1',
+        time: '01/01/2017'
+      }, {
+        collection: {
+          property1: 'item1'
+        },
+        collectionToShow: {
+          property1: ['item1']
+        },
+        id: '2',
+        time: '01/02/2017'
+      }, {
+        collection: {
+          property1: 'item1',
+          property2: 'item2,item3'
+        },
+        collectionToShow: {
+          property1: ['item1'],
+          property3: ['item2', 'item3']
+        },
+        id: '3',
+        time: '01/03/2017'
+      }, {
+        collection: {
+          property1: 'item1',
+          property2: 'item2,item3',
+          property3: 'item4,item5,item6,item7,item8'
+        },
+        collectionToShow: {
+          property1: [],
+          property2: ['item1'],
+          property3: ['item2', 'item3'],
+          property4: ['item4', 'item5', 'item6', 'item7', 'item8']
+        },
+        id: '4',
+        time: '01/04/2017'
+      }];
+
+      demo.open = function() {
+        demo.$.stateManager.openStateHistory();
+      };
+    })(document);
+    </script>
+
+    <template is="dom-bind">
+      <p>Build Popup Data Function:  <strong>[[stringifyFunction(buildPopupDataFunction)]]</strong></p>
+      <p>Build State Data Function:  <strong>[[stringifyFunction(buildStateDataFunction)]]</strong></p>
+      <p>State History:  <strong>[[stringify(stateHistory)]]</strong></p>
+      <p>Collection:  <strong>[[stringify(collection)]]</strong></p>
+      <p><a href="#" on-tap="open">Open State History</a></p>
+
+      <state-manager id="stateManager"
+        build-popup-data-function="[[buildPopupDataFunction]]"
+        build-state-data-function="[[buildStateDataFunction]]"
+        collection="{{collection}}"
+        state-history="{{stateHistory}}">
+      </state-manager>
+    </template>
+  </dom-bind>
 </body>
 </html>
