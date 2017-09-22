@@ -136,7 +136,7 @@ var processRequest = true;
       <template is="dom-repeat" items="[[stateHistory]]">
         <div class="layout horizontal">
           <div class="styled-dialog-name time">[[item.time]]</div>
-          <terms-display class="flex-1 styled-dialog-right-space" collection="[[item.collectionToShow]]" term-label="[[termLabel]]"></terms-display>
+          <terms-display class="flex-1 styled-dialog-right-space" collection="[[item.collectionToShow]]"></terms-display>
           <paper-icon-button icon="[[icon]]" title="Set [[headerType]] State" on-tap="_setState"></paper-icon-button>
         </div>
         <div class="styled-dialog-divider"></div>
