@@ -251,19 +251,6 @@ var processRequest = true;
         /**
          * (Optional)
          *
-         * The type string to show in the terms display.
-         *
-         * @type {String}
-         * @default 'Terms'
-         */
-        termLabel: {
-          type: String,
-          value: 'Terms'
-        },
-
-        /**
-         * (Optional)
-         *
          * The icon to show next to the states.
          *
          * @type {String}
@@ -272,6 +259,21 @@ var processRequest = true;
         icon: {
           type: String,
           value: 'search'
+        },
+
+        /**
+         * (Optional)
+         *
+         * The network expansion parameters, if any.
+         *
+         * @type {Object}
+         */
+        networkExpansion: {
+          notify: true,
+          type: Object,
+          value: function() {
+            return {};
+          }
         },
 
         /**
@@ -413,7 +415,7 @@ var processRequest = true;
       },
 
       observers: [
-        '_handleCollectionChange(collection.*, processRequest)',
+        '_handleCollectionChange(collection.*, networkExpansion.*, processRequest)',
         '_checkHistory(stateHistory.*)'
       ],
 
@@ -430,14 +432,16 @@ var processRequest = true;
        * @param {Function} buildPopupDataFunction
        * @param {Object} collection
        * @param {Object} functionConfig
+       * @param {Object} networkExpansion
        * @param {String} stateId
        * @private
        */
-      _addToHistory: function(buildPopupDataFunction, collection, functionConfig, stateId) {
+      _addToHistory: function(buildPopupDataFunction, collection, functionConfig, networkExpansion, stateId) {
         this.unshift('stateHistory', {
-          collection: this._createCollectionCopy(collection),
+          collection: this._copyObject(collection),
           collectionToShow: buildPopupDataFunction(collection, functionConfig),
           id: stateId,
+          networkExpansion: networkExpansion,
           time: moment(new Date()).format(this.format)
         });
       },
@@ -464,14 +468,14 @@ var processRequest = true;
       },
 
       /**
-       * Returns a copy of the given collection object.
+       * Returns a copy of the given object.
        *
-       * @param {Object} collection
+       * @param {Object} object
        * @return {Object}
        * @private
        */
-      _createCollectionCopy: function(collection) {
-        return JSON.parse(JSON.stringify(collection));
+      _copyObject: function(object) {
+        return JSON.parse(JSON.stringify(object));
       },
 
       /**
@@ -545,7 +549,8 @@ var processRequest = true;
         if(!this.collection || !this.processRequest || !this._defaultState || _.isEqual(this.collection, this._defaultState)) {
           var parameters = this._getUrlParameters(window.location.search);
           if(parameters.state) {
-            var resetStateId = (!this.stateHistory.length || !_.isEqual(this.collection, this.stateHistory[0].collection));
+            var resetStateId = (!this.stateHistory.length || !_.isEqual(this.collection, this.stateHistory[0].collection) ||
+                !_.isEqual(this.networkExpansion, this.stateHistory[0].networkExpansion));
             var link = this._generateLinkWithStateParameter(window.location, this.stateId, resetStateId);
             history.pushState({
               state: '',
@@ -571,15 +576,17 @@ var processRequest = true;
             if(this._validateId) {
               this.stateId = this._generateId();
             } else {
-              this._updateCollection(this.buildStateDataFunction, this._stateIdResults.hits.hits[0]._source.state, this.functionConfig);
+              var result = this._stateIdResults.hits.hits[0]._source;
+              this._updateCollection(this.buildStateDataFunction, result.networkExpansion, result.state, this.functionConfig);
             }
           } else if(this._validateId) {
             this._validateId = false;
             this._creationBody = {
               id: this.stateId,
+              networkExpansion: JSON.stringify(this.networkExpansion),
               state: this._createStringifiedState(this.buildStateDataFunction, this.collection, this.functionConfig)
             };
-            this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.functionConfig, this.stateHistory, this.stateId);
+            this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.functionConfig, this.networkExpansion, this.stateHistory, this.stateId);
           }
         }
       },
@@ -593,8 +600,11 @@ var processRequest = true;
        */
       _setState: function(event) {
         this.splice('stateHistory', event.model.index, 1);
-        this._addToHistory(this.buildPopupDataFunction, event.model.item.collection, this.functionConfig, event.model.item.id);
-        this.set('collection', this._createCollectionCopy(event.model.item.collection));
+        this._addToHistory(this.buildPopupDataFunction, event.model.item.collection, this.functionConfig, event.model.item.networkExpansion, event.model.item.id);
+        this.set('processRequest', false);
+        this.set('collection', this._copyObject(event.model.item.collection));
+        this.set('networkExpansion', this._copyObject(event.model.item.networkExpansion));
+        this.set('processRequest', true);
         var link = this._generateLinkWithStateParameter(window.location, event.model.item.id);
         history.pushState({
           state: event.model.item.id,
@@ -607,14 +617,16 @@ var processRequest = true;
        * Sets the `collection` to a new object using the given stringified state.
        *
        * @param {Function} buildStateDataFunction
+       * @param {String} stringifiedNetworkExpansion
        * @param {String} stringifiedState
        * @param {Object} functionConfig
        * @private
        */
-      _updateCollection: function(buildStateDataFunction, stringifiedState, functionConfig) {
+      _updateCollection: function(buildStateDataFunction, stringifiedNetworkExpansion, stringifiedState, functionConfig) {
         var state = JSON.parse(stringifiedState);
         this.set('processRequest', false);
         this.set('collection', buildStateDataFunction(state, functionConfig));
+        this.set('networkExpansion', JSON.parse(stringifiedNetworkExpansion));
         this.set('processRequest', true);
       },
 
@@ -628,7 +640,7 @@ var processRequest = true;
           if(this._stringifiedStateResults.hits.hits.length) {
             // Do not set this.stateId here because that will trigger another query.
             var stateId = this._stringifiedStateResults.hits.hits[0]._source.id;
-            this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.functionConfig, this.stateHistory, stateId);
+            this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.functionConfig, this.networkExpansion, this.stateHistory, stateId);
           } else {
             this._validateId = true;
             this.stateId = this._generateId();
@@ -642,22 +654,22 @@ var processRequest = true;
        * @param {Function} buildPopupDataFunction
        * @param {Object} collection
        * @param {Object} functionConfig
+       * @param {Object} networkExpansion
        * @param {Array} stateHistory
        * @param {String} stateId
        * @private
        */
-      _updateUrlAndAddToHistory: function(buildPopupDataFunction, collection, functionConfig, stateHistory, stateId) {
+      _updateUrlAndAddToHistory: function(buildPopupDataFunction, collection, functionConfig, networkExpansion, stateHistory, stateId) {
         var parameters = this._getUrlParameters(window.location.search);
         if(parameters.state && parameters.state === stateId) {
           return;
         }
 
-        // make sure this stateHistory item is the latest entry in stateHistory
-        if(!stateHistory.length || (stateHistory.length && JSON.stringify(collection) !== JSON.stringify(stateHistory[0].collection))) {
-          this._addToHistory(buildPopupDataFunction, collection, functionConfig, stateId);
+        if(!stateHistory.length || !_.isEqual(collection, stateHistory[0].collection) || !_.isEqual(networkExpansion, stateHistory[0].networkExpansion)) {
+          this._addToHistory(buildPopupDataFunction, collection, functionConfig, networkExpansion, stateId);
         }
+
         var link = this._generateLinkWithStateParameter(window.location, stateId);
-        // update URL with stateId
         history.pushState({
           state: stateId,
           stateHistory: stateHistory
