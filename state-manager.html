@@ -499,12 +499,13 @@ var processRequest = true;
        *
        * @param {Object} location
        * @param {String} stateId
+       * @param {Boolean} resetStateId
        * @return {String}
        * @private
        */
-      _generateLinkWithStateParameter: function(location, stateId) {
+      _generateLinkWithStateParameter: function(location, stateId, resetStateId) {
         var parameters = this._getUrlParameters(location.search);
-        if(stateId) {
+        if(!resetStateId) {
           parameters.state = stateId;
         } else {
           delete parameters.state;
@@ -542,9 +543,10 @@ var processRequest = true;
        */
       _handleCollectionChange: function() {
         if(!this.collection || !this.processRequest || !this._defaultState || _.isEqual(this.collection, this._defaultState)) {
-          var params = this._getUrlParameters(window.location.search);
-          if(params.state) {
-            var link = this._generateLinkWithStateParameter(window.location);
+          var parameters = this._getUrlParameters(window.location.search);
+          if(parameters.state) {
+            var resetStateId = (!this.stateHistory.length || !_.isEqual(this.collection, this.stateHistory[0].collection));
+            var link = this._generateLinkWithStateParameter(window.location, this.stateId, resetStateId);
             history.pushState({
               state: '',
               stateHistory: this.stateHistory
@@ -591,9 +593,7 @@ var processRequest = true;
        */
       _setState: function(event) {
         this.splice('stateHistory', event.model.index, 1);
-        console.log('spliced history ' + JSON.stringify(this.stateHistory));
         this._addToHistory(this.buildPopupDataFunction, event.model.item.collection, this.functionConfig, event.model.item.id);
-        console.log('new history ' + JSON.stringify(this.stateHistory));
         this.set('collection', this._createCollectionCopy(event.model.item.collection));
         var link = this._generateLinkWithStateParameter(window.location, event.model.item.id);
         history.pushState({
@@ -647,8 +647,8 @@ var processRequest = true;
        * @private
        */
       _updateUrlAndAddToHistory: function(buildPopupDataFunction, collection, functionConfig, stateHistory, stateId) {
-        var params = this._getUrlParameters(window.location.search);
-        if(params.state && params.state === stateId) {
+        var parameters = this._getUrlParameters(window.location.search);
+        if(parameters.state && parameters.state === stateId) {
           return;
         }
 
