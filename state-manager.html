@@ -98,6 +98,12 @@ var processRequest = true;
       styled-dialog {
         --styled-dialog-min-width: 0;
       }
+
+      terms-display {
+        --terms-display-label-style-mixin: {
+          width: 60px;
+        }
+      }
     </style>
 
     <build-and-run-query
@@ -132,11 +138,18 @@ var processRequest = true;
       results="{{_stringifiedStateResults}}">
     </build-and-run-query>
 
-    <styled-dialog id="stateHistoryDialog" header="View [[headerType]] State History">
+    <styled-dialog id="stateHistoryDialog" header="View [[headerType]] State History" fill>
       <template is="dom-repeat" items="[[stateHistory]]">
         <div class="layout horizontal">
           <div class="styled-dialog-name time">[[item.time]]</div>
-          <terms-display class="flex-1 styled-dialog-right-space" collection="[[item.collectionToShow]]"></terms-display>
+          <div class="layout vertical flex">
+            <template is="dom-if" if="[[item.collectionToShow]]">
+              <terms-display class="styled-dialog-right-space" collection="[[item.collectionToShow]]"></terms-display>
+            </template>
+            <template is="dom-if" if="[[item.networkExpansionToShow]]">
+              <terms-display class="styled-dialog-right-space" collection="[[item.networkExpansionToShow]]" label="Net. Exp."></terms-display>
+            </template>
+          </div>
           <paper-icon-button icon="[[icon]]" title="Set [[headerType]] State" on-tap="_setState"></paper-icon-button>
         </div>
         <div class="styled-dialog-divider"></div>
@@ -156,7 +169,7 @@ var processRequest = true;
         /**
          * (Required)
          *
-         * The function to build the terms-display data in the popup using a collection object.
+         * The function to build the terms-display data in the popup using a collection or network expansion object.
          * Must return an object containing fields mapped to arrays of string values.
          *
          * @type {Object}
@@ -437,11 +450,14 @@ var processRequest = true;
        * @private
        */
       _addToHistory: function(buildPopupDataFunction, collection, functionConfig, networkExpansion, stateId) {
+        var collectionToShow = buildPopupDataFunction(collection, functionConfig);
+        var networkExpansionToShow = buildPopupDataFunction(networkExpansion, functionConfig);
         this.unshift('stateHistory', {
           collection: this._copyObject(collection),
-          collectionToShow: buildPopupDataFunction(collection, functionConfig),
+          collectionToShow: _.isEqual(collectionToShow, {}) ? null : collectionToShow,
           id: stateId,
           networkExpansion: networkExpansion,
+          networkExpansionToShow: _.isEqual(networkExpansionToShow, {}) ? null : networkExpansionToShow,
           time: moment(new Date()).format(this.format)
         });
       },
@@ -484,11 +500,12 @@ var processRequest = true;
        * @param {Function} buildStateDataFunction
        * @param {Object} collection
        * @param {Object} functionConfig
+       * @param {Object} networkExpansion
        * @return {String}
        * @private
        */
-      _createStringifiedState: function(buildStateDataFunction, collection, functionConfig) {
-        return JSON.stringify(buildStateDataFunction(collection, functionConfig));
+      _createStringifiedState: function(buildStateDataFunction, collection, functionConfig, networkExpansion) {
+        return '{"collection":' + JSON.stringify(buildStateDataFunction(collection, functionConfig)) + ',"networkExpansion":' + JSON.stringify(networkExpansion) + '}';
       },
 
       /**
@@ -561,7 +578,7 @@ var processRequest = true;
           return;
         }
 
-        this._stringifiedState = this._createStringifiedState(this.buildStateDataFunction, this.collection, this.functionConfig);
+        this._stringifiedState = this._createStringifiedState(this.buildStateDataFunction, this.collection, this.functionConfig, this.networkExpansion);
       },
 
       /**
@@ -576,15 +593,13 @@ var processRequest = true;
             if(this._validateId) {
               this.stateId = this._generateId();
             } else {
-              var result = this._stateIdResults.hits.hits[0]._source;
-              this._updateCollection(this.buildStateDataFunction, result.networkExpansion, result.state, this.functionConfig);
+              this._updateCollection(this.buildStateDataFunction, this._stateIdResults.hits.hits[0]._source.state, this.functionConfig);
             }
           } else if(this._validateId) {
             this._validateId = false;
             this._creationBody = {
               id: this.stateId,
-              networkExpansion: JSON.stringify(this.networkExpansion),
-              state: this._createStringifiedState(this.buildStateDataFunction, this.collection, this.functionConfig)
+              state: this._createStringifiedState(this.buildStateDataFunction, this.collection, this.functionConfig, this.networkExpansion)
             };
             this._updateUrlAndAddToHistory(this.buildPopupDataFunction, this.collection, this.functionConfig, this.networkExpansion, this.stateHistory, this.stateId);
           }
@@ -617,16 +632,15 @@ var processRequest = true;
        * Sets the `collection` to a new object using the given stringified state.
        *
        * @param {Function} buildStateDataFunction
-       * @param {String} stringifiedNetworkExpansion
        * @param {String} stringifiedState
        * @param {Object} functionConfig
        * @private
        */
-      _updateCollection: function(buildStateDataFunction, stringifiedNetworkExpansion, stringifiedState, functionConfig) {
+      _updateCollection: function(buildStateDataFunction, stringifiedState, functionConfig) {
         var state = JSON.parse(stringifiedState);
         this.set('processRequest', false);
-        this.set('collection', buildStateDataFunction(state, functionConfig));
-        this.set('networkExpansion', JSON.parse(stringifiedNetworkExpansion));
+        this.set('collection', buildStateDataFunction(state.collection, functionConfig));
+        this.set('networkExpansion', state.networkExpansion);
         this.set('processRequest', true);
       },
 

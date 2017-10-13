@@ -188,17 +188,17 @@ limitations under the License.
         expect(element._validateId).to.be.false;
         expect(element._creationBody).to.deep.equal({
           id: 'id1',
-          networkExpansion: '{}',
-          state: DEFAULT_STRING_ENTITY_STATE
+          state: '{"collection":' + DEFAULT_STRING_ENTITY_STATE + ',"networkExpansion":{}}'
         });
 
         expect(window.location.search).to.equal('?state=id1');
         expect(element.stateHistory).to.be.an('Array');
         expect(element.stateHistory.length).to.equal(1);
         expect(element.stateHistory[0].collection).to.deep.equal({});
-        expect(element.stateHistory[0].collectionToShow).to.be.an('Object');
+        expect(element.stateHistory[0].collectionToShow).to.be.null;
         expect(element.stateHistory[0].id).to.equal('id1');
         expect(element.stateHistory[0].networkExpansion).to.deep.equal({});
+        expect(element.stateHistory[0].networkExpansionToShow).to.be.null;
         expect(element.stateHistory[0].time).to.be.a('String');
       });
 
@@ -213,8 +213,7 @@ limitations under the License.
           hits: {
             hits: [{
               _source: {
-                networkExpansion: '{}',
-                state: '{}'
+                state: '{"collection":{},"networkExpansion":{}}'
               }
             }]
           }
@@ -233,8 +232,7 @@ limitations under the License.
           hits: {
             hits: [{
               _source: {
-                networkExpansion: '{}',
-                state: '{}'
+                state: '{"collection":{},"networkExpansion":{}}'
               }
             }]
           }
@@ -248,8 +246,7 @@ limitations under the License.
           hits: {
             hits: [{
               _source: {
-                networkExpansion: '{"key":"value"}',
-                state: EXAMPLE_STRING_ENTITY_STATE
+                state: '{"collection":' + EXAMPLE_STRING_ENTITY_STATE + ',"networkExpansion":{"key":"value"}}'
               }
             }]
           }
@@ -290,7 +287,8 @@ limitations under the License.
           hits: {
             hits: [{
               _source: {
-                id: 'id2'
+                id: 'id2',
+                state: '{"collection":{},"networkExpansion":{}}'
               }
             }]
           }
@@ -301,8 +299,10 @@ limitations under the License.
         expect(element.stateHistory).to.be.an('Array');
         expect(element.stateHistory.length).to.equal(1);
         expect(element.stateHistory[0].collection).to.deep.equal({});
-        expect(element.stateHistory[0].collectionToShow).to.be.an('Object');
+        expect(element.stateHistory[0].collectionToShow).to.be.null;
         expect(element.stateHistory[0].id).to.equal('id2');
+        expect(element.stateHistory[0].networkExpansion).to.deep.equal({});
+        expect(element.stateHistory[0].networkExpansionToShow).to.be.null;
         expect(element.stateHistory[0].time).to.be.a('String');
       });
 
@@ -320,12 +320,48 @@ limitations under the License.
       test('setting processRequest to true does update _stringifiedState if collection is valid', function() {
         element.collection = EXAMPLE_OBJECT_ENTITY_STATE;
         element.processRequest = true;
-        expect(element._stringifiedState).to.equal(EXAMPLE_STRING_ENTITY_STATE);
+        expect(element._stringifiedState).to.equal('{"collection":' + EXAMPLE_STRING_ENTITY_STATE + ',"networkExpansion":{}}');
+      });
+
+      test('setting processRequest to true does update _stringifiedState with the network expansion parameters', function() {
+        element.collection = EXAMPLE_OBJECT_ENTITY_STATE;
+        element.networkExpansion = {
+          key: 'value'
+        };
+        element.processRequest = true;
+        expect(element._stringifiedState).to.equal('{"collection":' + EXAMPLE_STRING_ENTITY_STATE + ',"networkExpansion":{"key":"value"}}');
       });
 
       test('setting collection does not update _stringifiedState if processRequest is false', function() {
         element.processRequest = false;
         element.collection = EXAMPLE_OBJECT_ENTITY_STATE;
+        expect(element._stringifiedState).to.not.exist;
+      });
+
+      test('setting the network expansion parameters does update _stringifiedState if processRequest is true', function() {
+        element.processRequest = true;
+        element.collection = EXAMPLE_OBJECT_ENTITY_STATE;
+        element.networkExpansion = {
+          key: 'value'
+        };
+        expect(element._stringifiedState).to.equal('{"collection":' + EXAMPLE_STRING_ENTITY_STATE + ',"networkExpansion":{"key":"value"}}');
+      });
+
+      test('setting the network expansion parameters does not update _stringifiedState if collection is default', function() {
+        element.processRequest = true;
+        element.collection = DEFAULT_OBJECT_ENTITY_STATE;
+        element.networkExpansion = {
+          key: 'value'
+        };
+        expect(element._stringifiedState).to.not.exist;
+      });
+
+      test('setting the network expansion parameters does not update _stringifiedState if processRequest is false', function() {
+        element.processRequest = false;
+        element.collection = EXAMPLE_OBJECT_ENTITY_STATE;
+        element.networkExpansion = {
+          key: 'value'
+        };
         expect(element._stringifiedState).to.not.exist;
       });
 
@@ -347,33 +383,53 @@ limitations under the License.
       });
 
       test('_addToHistory does use the given function config', function() {
-        var called = false;
+        var called = 0;
         element._addToHistory(function(collection, config) {
-          expect(collection).to.deep.equal({
-            key1: ['value1']
-          });
+          ++called;
           expect(config).to.deep.equal({
-            key2: ['value2']
+            configKey: ['configValue']
           });
-          called = true;
-          return config;
+          if(called === 1) {
+            expect(collection).to.deep.equal({
+              collectionKey: ['collectionValue']
+            });
+            return {
+              newCollectionKey: ['newCollectionValue']
+            };
+          }
+          if(called === 2) {
+            expect(collection).to.deep.equal({
+              networkExpansionKey: ['networkExpansionValue']
+            });
+            return {
+              newNetworkExpansionKey: ['newNetworkExpansionValue']
+            };
+          }
+          return {};
         }, {
-          key1: ['value1']
+          collectionKey: ['collectionValue']
         }, {
-          key2: ['value2']
-        }, {}, 'id1');
+          configKey: ['configValue']
+        }, {
+          networkExpansionKey: ['networkExpansionValue']
+        }, 'id1');
 
+        expect(called).to.equal(2);
         expect(element.stateHistory.length).to.equal(1);
         expect(element.stateHistory[0].id).to.equal('id1');
         expect(element.stateHistory[0].collection).to.deep.equal({
-          key1: ['value1']
+          collectionKey: ['collectionValue']
         });
         expect(element.stateHistory[0].collectionToShow).to.deep.equal({
-          key2: ['value2']
+          newCollectionKey: ['newCollectionValue']
         });
-        expect(element.stateHistory[0].networkExpansion).to.deep.equal({});
+        expect(element.stateHistory[0].networkExpansion).to.deep.equal({
+          networkExpansionKey: ['networkExpansionValue']
+        });
+        expect(element.stateHistory[0].networkExpansionToShow).to.deep.equal({
+          newNetworkExpansionKey: ['newNetworkExpansionValue']
+        });
         expect(element.stateHistory[0].time).to.be.a('String');
-        expect(called).to.be.true;
       });
 
       test('_addToHistory does save the previous stateHistory', function() {
@@ -459,22 +515,34 @@ limitations under the License.
 
       test('_createStringifiedState does return JSON strings', function() {
         expect(BUILD_SEARCH_STATE_DATA).to.be.a('Function');
-        expect(element._createStringifiedState(BUILD_ENTITY_STATE_DATA, {}, {})).to.equal(DEFAULT_STRING_ENTITY_STATE);
-        expect(element._createStringifiedState(BUILD_ENTITY_STATE_DATA, EXAMPLE_OBJECT_ENTITY_STATE, {})).to.equal(EXAMPLE_STRING_ENTITY_STATE);
+        expect(element._createStringifiedState(BUILD_ENTITY_STATE_DATA, {}, {}, {})).to.equal('{"collection":' + DEFAULT_STRING_ENTITY_STATE + ',"networkExpansion":{}}');
+        expect(element._createStringifiedState(BUILD_ENTITY_STATE_DATA, EXAMPLE_OBJECT_ENTITY_STATE, {}, {})).to.equal('{"collection":' + EXAMPLE_STRING_ENTITY_STATE + ',"networkExpansion":{}}');
 
         expect(BUILD_ENTITY_STATE_DATA).to.be.a('Function');
-        expect(element._createStringifiedState(BUILD_SEARCH_STATE_DATA, {}, {})).to.equal(DEFAULT_STRING_SEARCH_STATE);
-        expect(element._createStringifiedState(BUILD_SEARCH_STATE_DATA, EXAMPLE_OBJECT_SEARCH_STATE, {})).to.equal(EXAMPLE_STRING_SEARCH_STATE);
+        expect(element._createStringifiedState(BUILD_SEARCH_STATE_DATA, {}, {}, {})).to.equal('{"collection":' + DEFAULT_STRING_SEARCH_STATE + ',"networkExpansion":{}}');
+        expect(element._createStringifiedState(BUILD_SEARCH_STATE_DATA, EXAMPLE_OBJECT_SEARCH_STATE, {}, {})).to.equal('{"collection":' + EXAMPLE_STRING_SEARCH_STATE + ',"networkExpansion":{}}');
+      });
 
-        var called = false;
+      test('_createStringifiedState does work with network expansion parameters', function() {
+        expect(element._createStringifiedState(BUILD_ENTITY_STATE_DATA, EXAMPLE_OBJECT_ENTITY_STATE, {}, {
+          key1: 'value1'
+        })).to.equal('{"collection":' + EXAMPLE_STRING_ENTITY_STATE + ',"networkExpansion":{"key1":"value1"}}');
+
+        expect(element._createStringifiedState(BUILD_SEARCH_STATE_DATA, EXAMPLE_OBJECT_SEARCH_STATE, {}, {
+          key2: 'value2'
+        })).to.equal('{"collection":' + EXAMPLE_STRING_SEARCH_STATE + ',"networkExpansion":{"key2":"value2"}}');
+      });
+
+      test('_createStringifiedState does work with custom function', function() {
+        var called = 0;
         var buildState = function(collection, config) {
+          ++called;
           expect(collection).to.deep.equal('myCollection')
           expect(config).to.deep.equal('myConfig')
-          called = true;
           return 'myObject';
         };
-        expect(element._createStringifiedState(buildState, 'myCollection', 'myConfig')).to.equal(JSON.stringify('myObject'));
-        expect(called).to.be.true;
+        expect(element._createStringifiedState(buildState, 'myCollection', 'myConfig', 'myNetworkExpansion')).to.equal('{"collection":"myObject","networkExpansion":"myNetworkExpansion"}');
+        expect(called).to.equal(1);
       });
 
       test('_generateId does return strings', function() {
@@ -556,13 +624,13 @@ limitations under the License.
       });
 
       test('_updateCollection with empty object does set entity collection', function() {
-        element._updateCollection(BUILD_ENTITY_STATE_DATA, '{}', '{}', {});
+        element._updateCollection(BUILD_ENTITY_STATE_DATA, '{"collection":{},"networkExpansion":{}}', {});
         expect(element.collection).to.deep.equal(DEFAULT_OBJECT_ENTITY_STATE);
         expect(element.networkExpansion).to.deep.equal({});
       });
 
       test('_updateCollection with non-empty object does set entity collection', function() {
-        element._updateCollection(BUILD_ENTITY_STATE_DATA, '{}', EXAMPLE_STRING_ENTITY_STATE, {});
+        element._updateCollection(BUILD_ENTITY_STATE_DATA, '{"collection":' + EXAMPLE_STRING_ENTITY_STATE + ',"networkExpansion":{}}', {});
         expect(element.collection).to.deep.equal(EXAMPLE_OBJECT_ENTITY_STATE);
         expect(element.networkExpansion).to.deep.equal({});
       });
@@ -571,7 +639,7 @@ limitations under the License.
         element.buildPopupDataFunction = BUILD_SEARCH_POPUP_DATA;
         element.buildStateDataFunction = BUILD_SEARCH_STATE_DATA;
 
-        element._updateCollection(BUILD_SEARCH_STATE_DATA, '{}', '{}', {});
+        element._updateCollection(BUILD_SEARCH_STATE_DATA, '{"collection":{},"networkExpansion":{}}', {});
         expect(element.collection).to.deep.equal(DEFAULT_OBJECT_SEARCH_STATE);
         expect(element.networkExpansion).to.deep.equal({});
       });
@@ -580,36 +648,36 @@ limitations under the License.
         element.buildPopupDataFunction = BUILD_SEARCH_POPUP_DATA;
         element.buildStateDataFunction = BUILD_SEARCH_STATE_DATA;
 
-        element._updateCollection(BUILD_SEARCH_STATE_DATA, '{}', EXAMPLE_STRING_SEARCH_STATE, {});
+        element._updateCollection(BUILD_SEARCH_STATE_DATA, '{"collection":' + EXAMPLE_STRING_SEARCH_STATE + ',"networkExpansion":{}}', {});
         expect(element.collection).to.deep.equal(EXAMPLE_OBJECT_SEARCH_STATE);
         expect(element.networkExpansion).to.deep.equal({});
       });
 
       test('_updateCollection does use the given function config', function() {
-        var called = false;
+        var called = 0;
         element._updateCollection(function(collection, config) {
+          ++called;
           expect(collection).to.deep.equal({
             a: 'b'
           });
           expect(config).to.deep.equal({
             c: 'd'
           });
-          called = true;
           return {
             x: 'y'
           };
-        }, '{}', '{"a":"b"}', {
+        }, '{"collection":{"a":"b"},"networkExpansion":{}}', {
           c: 'd'
         });
+        expect(called).to.equal(1);
         expect(element.collection).to.deep.equal({
           x: 'y'
         });
         expect(element.networkExpansion).to.deep.equal({});
-        expect(called).to.be.true;
       });
 
       test('_updateCollection does set network expansion parameters', function() {
-        element._updateCollection(BUILD_ENTITY_STATE_DATA, '{"key":"value"}', EXAMPLE_STRING_ENTITY_STATE, {});
+        element._updateCollection(BUILD_ENTITY_STATE_DATA, '{"collection":' + EXAMPLE_STRING_ENTITY_STATE + ',"networkExpansion":{"key":"value"}}', {});
         expect(element.collection).to.deep.equal(EXAMPLE_OBJECT_ENTITY_STATE);
         expect(element.networkExpansion).to.deep.equal({
           key: 'value'
