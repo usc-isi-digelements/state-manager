@@ -90,9 +90,11 @@ var processRequest = true;
       }
 
       paper-icon-button {
-          height: 30px;
-          width: 30px;
-          padding: 0;
+        height: 30px;
+        width: 30px;
+        margin-right: 10px;
+        min-width: 30px;
+        padding: 0;
       }
 
       styled-dialog {
@@ -141,16 +143,16 @@ var processRequest = true;
     <styled-dialog id="stateHistoryDialog" header="View [[headerType]] State History" fill>
       <template is="dom-repeat" items="[[stateHistory]]">
         <div class="layout horizontal">
-          <div class="styled-dialog-name time">[[item.time]]</div>
+          <paper-icon-button icon="[[icon]]" title="Set [[headerType]] State" on-tap="_setState"></paper-icon-button>
+          <div class="styled-dialog-text time">[[item.time]]</div>
           <div class="layout vertical flex">
             <template is="dom-if" if="[[item.collectionToShow]]">
-              <terms-display class="styled-dialog-right-space" collection="[[item.collectionToShow]]"></terms-display>
+              <terms-display class="styled-dialog-right-space" collection="[[item.collectionToShow]]" label="Terms"></terms-display>
             </template>
             <template is="dom-if" if="[[item.networkExpansionToShow]]">
-              <terms-display class="styled-dialog-right-space" collection="[[item.networkExpansionToShow]]" label="Net. Exp."></terms-display>
+              <terms-display class="styled-dialog-right-space" collection="[[item.networkExpansionToShow]]" label="Net Exp"></terms-display>
             </template>
           </div>
-          <paper-icon-button icon="[[icon]]" title="Set [[headerType]] State" on-tap="_setState"></paper-icon-button>
         </div>
         <div class="styled-dialog-divider"></div>
       </template>
