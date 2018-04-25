@@ -17,11 +17,11 @@ limitations under the License.
 <link rel="import" href="../polymer/polymer.html">
 <link rel="import" href="../build-and-run-query/build-and-run-query.html">
 <link rel="import" href="../elastic-create/elastic-create.html">
+<link rel="import" href="../icon-button/icon-button.html">
 <link rel="import" href="../iron-flex-layout/iron-flex-layout-classes.html">
 <link rel="import" href="../lodash-import/lodash.html">
 <link rel="import" href="../moment-element/moment-with-locales-import.html">
 <link rel="import" href="../neon-animation/web-animations.html">
-<link rel="import" href="../paper-icon-button/paper-icon-button.html">
 <link rel="import" href="../styled-dialog/styled-dialog.html">
 <link rel="import" href="../styled-dialog/styled-dialog-styles.html">
 <link rel="import" href="../terms-display/terms-display.html">
@@ -89,12 +89,8 @@ var processRequest = true;
         min-width: 120px;
       }
 
-      paper-icon-button {
-        height: 30px;
-        width: 30px;
+      icon-button {
         margin-right: 10px;
-        min-width: 30px;
-        padding: 0;
       }
 
       styled-dialog {
@@ -141,11 +137,11 @@ var processRequest = true;
     <styled-dialog id="stateHistoryDialog" header="View [[headerType]] State History" fill>
       <template is="dom-repeat" items="[[stateHistory]]">
         <div class="layout horizontal">
-          <paper-icon-button icon="[[icon]]" title="Set [[headerType]] State" on-tap="_setState"></paper-icon-button>
+          <icon-button bigger icon="[[icon]]" title-tooltip="Set [[headerType]] State" on-tap="_setState"></icon-button>
           <div class="styled-dialog-text time">[[item.time]]</div>
           <div class="layout vertical flex">
             <template is="dom-if" if="[[item.collectionToShow]]">
-              <terms-display class="styled-dialog-right-space" collection="[[item.collectionToShow]]" label="Terms"></terms-display>
+              <terms-display class="styled-dialog-right-space" collection="[[item.collectionToShow]]" label="Search"></terms-display>
             </template>
             <template is="dom-if" if="[[item.networkExpansionToShow]]">
               <terms-display class="styled-dialog-right-space" collection="[[item.networkExpansionToShow]]" label="Net Exp"></terms-display>

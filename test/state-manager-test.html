@@ -140,23 +140,30 @@ limitations under the License.
         element.stateHistory = [{
           collectionToShow: {
             key1: ['value1']
+          },
+          networkExpansionToShow: {
+            key2: ['value2']
           }
         }, {
           collectionToShow: {
-            key2: ['value2']
+            key3: ['value3']
+          },
+          networkExpansionToShow: {
+            key4: ['value4']
           }
         }];
 
         flush(function() {
           var termsDisplays = Polymer.dom(element.root).querySelectorAll('terms-display');
+          expect(termsDisplays.length).to.equal(4);
           expect(termsDisplays[0]).to.exist;
+          expect(termsDisplays[0].getAttribute('label')).to.equal('Search');
           expect(termsDisplays[1]).to.exist;
-          expect(termsDisplays[0].collection).to.deep.equal({
-            key1: ['value1']
-          });
-          expect(termsDisplays[1].collection).to.deep.equal({
-            key2: ['value2']
-          });
+          expect(termsDisplays[1].getAttribute('label')).to.equal('Net Exp');
+          expect(termsDisplays[2]).to.exist;
+          expect(termsDisplays[2].getAttribute('label')).to.equal('Search');
+          expect(termsDisplays[3]).to.exist;
+          expect(termsDisplays[3].getAttribute('label')).to.equal('Net Exp');
           done();
         });
       });
